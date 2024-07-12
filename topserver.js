@@ -2,6 +2,8 @@ const express = require('express');
 const bodyParser = require('body-parser');
 const readline = require('readline');
 const puppeteer = require('puppeteer-core');
+const { exec } = require('child_process');
+
 
 const app = express();
 const PORT = 3000;
@@ -106,157 +108,250 @@ const calculateProfit = (entryPrice, exitPrice, quantity, ticker, type) => {
 };
 
 
+const killChrome = () => {
+    return new Promise((resolve, reject) => {
+        exec('taskkill /F /IM chrome.exe', (err, stdout, stderr) => {
+            if (err) {
+                reject('Error killing Chrome process:', err);
+                return;
+            }
+            resolve('Chrome killed successfully');
+        });
+    });
+};
+
+const openChromeToTopstep = () => {
+    const command = '"C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe" --remote-debugging-port=9222 --new-window https://topstepx.com/trade';
+    exec(command, (err, stdout, stderr) => {
+        if (err) {
+            console.error('Error restarting Chrome:', err);
+            return;
+        }
+        console.log('Topstep restarted');
+    });
+};
 
 // Function to simulate buying shares
 const simulateBuy = async (quantity, price, ticker) => {
     console.log(`Simulating buy of ${quantity} shares of ${ticker} at price ${price}`);
 
-    const browser = await puppeteer.connect({
-        browserURL: 'http://127.0.0.1:9222',
-        defaultViewport: null
+    let browser;
+    let timeoutOccurred = false;
+
+    // Function to handle timeout
+    const timeoutPromise = new Promise((resolve, reject) => {
+        setTimeout(() => {
+            timeoutOccurred = true;
+            reject(new Error('Timeout occurred'));
+        }, 10000);  // 10 seconds timeout for example
     });
 
-    const pages = await browser.pages();
-    const pageURL = 'https://topstepx.com/trade';
-    let page = pages.find(page => page.url().includes(pageURL));
-
-    if (!page) {
-        console.error(`Page with URL ${pageURL} not found.`);
-        await browser.disconnect();
-        return;
-    }
-
-    console.log('Page found.');
-
     try {
-        // Switch to the page if it's not the active tab
-        if (page !== (await browser.pages())[0]) {
-            await page.bringToFront(); // Bring the tab to front
+        browser = await Promise.race([
+            puppeteer.connect({
+                browserURL: 'http://127.0.0.1:9222',
+                defaultViewport: null
+            }),
+            timeoutPromise
+        ]);
+
+        if (timeoutOccurred) throw new Error('Timeout occurred while connecting to the browser');
+
+        console.log('Connected to the browser.');
+
+        const pages = await browser.pages();
+        const pageURL = 'https://topstepx.com/trade';
+        let page = pages.find(page => page.url().includes(pageURL));
+
+        if (!page) {
+            console.error(`Page with URL ${pageURL} not found.`);
+            await browser.disconnect();
+            console.log('broaction failed');
+            return;
         }
 
-        // Change the value of the price input field to the provided close price
-        await page.waitForSelector('#\\:rv\\:');  // Escape the colon in the selector
-        await page.click('#\\:rv\\:', { clickCount: 3 });
-        await page.type('#\\:rv\\:', price.toString());
-        console.log(`Set the price to ${price}.`);
+        console.log('Page found.');
 
+        try {
+            // Switch to the page if it's not the active tab
+            if (page !== (await browser.pages())[0]) {
+                await page.bringToFront(); // Bring the tab to front
+            }
 
-        await page.waitForSelector('div.MuiInputBase-root input#\\:r10\\:');
-        await page.click('div.MuiInputBase-root input#\\:r10\\:', { clickCount: 3 });
-        await page.type('div.MuiInputBase-root input#\\:r10\\:', quantity.toString());
-        console.log(`Set the order quantity to ${quantity}.`);        
-        
+            // Change the value of the price input field to the provided close price
+            await page.waitForSelector('#\\:rv\\:');  // Escape the colon in the selector
+            await page.click('#\\:rv\\:', { clickCount: 3 });
+            await page.type('#\\:rv\\:', price.toString());
+            console.log(`Set the price to ${price}.`);
 
+            await page.waitForSelector('div.MuiInputBase-root input#\\:r10\\:');
+            await page.click('div.MuiInputBase-root input#\\:r10\\:', { clickCount: 3 });
+            await page.type('div.MuiInputBase-root input#\\:r10\\:', quantity.toString());
+            console.log(`Set the order quantity to ${quantity}.`);
 
-        // Click the place order button (example selector, adjust as per your page)
-        await page.waitForSelector('button.MuiButtonBase-root.MuiButton-root.MuiButton-contained.MuiButton-containedSuccess.MuiButton-sizeLarge.MuiButton-containedSizeLarge');
-        await page.click('button.MuiButtonBase-root.MuiButton-root.MuiButton-contained.MuiButton-containedSuccess.MuiButton-sizeLarge.MuiButton-containedSizeLarge');
-        console.log('Clicked the Buy button.');     
-        
+            // Click the place order button (example selector, adjust as per your page)
+            await page.waitForSelector('button.MuiButtonBase-root.MuiButton-root.MuiButton-contained.MuiButton-containedSuccess.MuiButton-sizeLarge.MuiButton-containedSizeLarge');
+            await page.click('button.MuiButtonBase-root.MuiButton-root.MuiButton-contained.MuiButton-containedSuccess.MuiButton-sizeLarge.MuiButton-containedSizeLarge');
+            console.log('Clicked the Buy button.');
 
-// Use XPath to find the Confirm Buy button
-const confirmButtonXPath = "//button[contains(text(), 'Confirm Buy')]";
+            // Use XPath to find the Confirm Buy button
+            const confirmButtonXPath = "//button[contains(text(), 'Confirm Buy')]";
 
-// Wait for the Confirm Buy button to be present in the DOM
-await page.waitForFunction(
-    (xpath) => {
-        return document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
-    },
-    {},
-    confirmButtonXPath
-);
+            // Wait for the Confirm Buy button to be present in the DOM
+            await page.waitForFunction(
+                (xpath) => {
+                    return document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+                },
+                {},
+                confirmButtonXPath
+            );
 
+            // Click the Confirm Buy button
+            await page.evaluate((xpath) => {
+                const button = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+                button.click();
+            }, confirmButtonXPath);
 
+            console.log('Clicked the Confirm Buy button.');
 
+        } catch (error) {
+            console.error('Error during buy process:', error);
+            console.log('broaction failed');
+        }
 
-// Click the Confirm Buy button
-await page.evaluate((xpath) => {
-    const button = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
-    button.click();
-}, confirmButtonXPath);
-
-console.log('Clicked the Confirm Buy button.');
-
-
+        console.log('Buy process completed.');
+        await browser.disconnect();
     } catch (error) {
-        console.error('Error during buy process:', error);
-    }
+        console.error('Error during Puppeteer operations:', error);
+        console.log('broaction failed');
 
-    console.log('Buy process completed.');
-    await browser.disconnect();
+        // Kill Chrome and restart it without the if err part
+        killChrome()
+            .then(() => {
+                openChromeToTopstep();
+                return new Promise(resolve => setTimeout(resolve, 9000)); // Wait for 9 seconds
+            })
+            .then(() => {
+                return simulateBuy(quantity, price, ticker); // Retry simulateBuy function
+            })
+            .catch((err) => {
+                console.error(err);
+            });
+    }
 };
+
 
 // Function to simulate selling shares
 const simulateSell = async (quantity, price, ticker) => {
     console.log(`Simulating sell of ${quantity} shares of ${ticker} at price ${price}`);
 
-    const browser = await puppeteer.connect({
-        browserURL: 'http://127.0.0.1:9222',
-        defaultViewport: null
+    let browser;
+    let timeoutOccurred = false;
+
+    // Function to handle timeout
+    const timeoutPromise = new Promise((resolve, reject) => {
+        setTimeout(() => {
+            timeoutOccurred = true;
+            reject(new Error('Timeout occurred'));
+        }, 10000);  // 10 seconds timeout for example
     });
 
-    const pages = await browser.pages();
-    const pageURL = 'https://topstepx.com/trade';
-    let page = pages.find(page => page.url().includes(pageURL));
-
-    if (!page) {
-        console.error(`Page with URL ${pageURL} not found.`);
-        await browser.disconnect();
-        return;
-    }
-
-    console.log('Page found.');
-
     try {
-        // Switch to the page if it's not the active tab
-        if (page !== (await browser.pages())[0]) {
-            await page.bringToFront(); // Bring the tab to front
+        browser = await Promise.race([
+            puppeteer.connect({
+                browserURL: 'http://127.0.0.1:9222',
+                defaultViewport: null
+            }),
+            timeoutPromise
+        ]);
+
+        if (timeoutOccurred) throw new Error('Timeout occurred while connecting to the browser');
+
+        console.log('Connected to the browser.');
+
+        const pages = await browser.pages();
+        const pageURL = 'https://topstepx.com/trade';
+        let page = pages.find(page => page.url().includes(pageURL));
+
+        if (!page) {
+            console.error(`Page with URL ${pageURL} not found.`);
+            await browser.disconnect();
+            console.log('broaction failed');
+            return;
         }
 
-        // Change the value of the price input field to the provided close price
-        await page.waitForSelector('#\\:rv\\:');  // Escape the colon in the selector
-        await page.click('#\\:rv\\:', { clickCount: 3 });
-        await page.type('#\\:rv\\:', price.toString());
-        console.log(`Set the price to ${price}.`);
+        console.log('Page found.');
 
-        await page.waitForSelector('div.MuiInputBase-root input#\\:r10\\:');
-        await page.click('div.MuiInputBase-root input#\\:r10\\:', { clickCount: 3 });
-        await page.type('div.MuiInputBase-root input#\\:r10\\:', quantity.toString());
-        console.log(`Set the order quantity to ${quantity}.`);        
-        
-        // Click the place order button (example selector, adjust as per your page)
-        await page.waitForSelector('button.MuiButtonBase-root.MuiButton-root.MuiButton-contained.MuiButton-containedError.MuiButton-sizeLarge.MuiButton-containedSizeLarge');
-        await page.click('button.MuiButtonBase-root.MuiButton-root.MuiButton-contained.MuiButton-containedError.MuiButton-sizeLarge.MuiButton-containedSizeLarge');        
-        console.log('Clicked the Sell button.');     
-        
+        try {
+            // Switch to the page if it's not the active tab
+            if (page !== (await browser.pages())[0]) {
+                await page.bringToFront(); // Bring the tab to front
+            }
 
-        // Use XPath to find the Confirm Sell button
-        const confirmButtonXPath = "//button[contains(text(), 'Confirm Sell')]";
+            // Change the value of the price input field to the provided close price
+            await page.waitForSelector('#\\:rv\\:');  // Escape the colon in the selector
+            await page.click('#\\:rv\\:', { clickCount: 3 });
+            await page.type('#\\:rv\\:', price.toString());
+            console.log(`Set the price to ${price}.`);
 
-        // Wait for the Confirm Sell button to be present in the DOM
-        await page.waitForFunction(
-            (xpath) => {
-                return document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
-            },
-            {},
-            confirmButtonXPath
-        );
+            await page.waitForSelector('div.MuiInputBase-root input#\\:r10\\:');
+            await page.click('div.MuiInputBase-root input#\\:r10\\:', { clickCount: 3 });
+            await page.type('div.MuiInputBase-root input#\\:r10\\:', quantity.toString());
+            console.log(`Set the order quantity to ${quantity}.`);
 
-        // Click the Confirm Sell button
-        await page.evaluate((xpath) => {
-            const button = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
-            button.click();
-        }, confirmButtonXPath);
+            // Click the place order button (example selector, adjust as per your page)
+            await page.waitForSelector('button.MuiButtonBase-root.MuiButton-root.MuiButton-contained.MuiButton-containedError.MuiButton-sizeLarge.MuiButton-containedSizeLarge');
+        await page.click('button.MuiButtonBase-root.MuiButton-root.MuiButton-contained.MuiButton-containedError.MuiButton-sizeLarge.MuiButton-containedSizeLarge'); 
+            console.log('Clicked the Sell button.');
 
-        console.log('Clicked the Confirm Sell button.');
+            // Use XPath to find the Confirm Sell button
+            const confirmButtonXPath = "//button[contains(text(), 'Confirm Sell')]";
 
+            // Wait for the Confirm Sell button to be present in the DOM
+            await page.waitForFunction(
+                (xpath) => {
+                    return document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+                },
+                {},
+                confirmButtonXPath
+            );
+
+            // Click the Confirm Sell button
+            await page.evaluate((xpath) => {
+                const button = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue;
+                button.click();
+            }, confirmButtonXPath);
+
+            console.log('Clicked the Confirm Sell button.');
+
+        } catch (error) {
+            console.error('Error during sell process:', error);
+            console.log('broaction failed');
+        }
+
+        console.log('Sell process completed.');
+        await browser.disconnect();
     } catch (error) {
-        console.error('Error during sell process:', error);
-    }
+        console.error('Error during Puppeteer operations:', error);
+        console.log('broaction failed');
 
-    console.log('Sell process completed.');
-    await browser.disconnect();
+        // Kill Chrome and restart it without the if err part
+        killChrome()
+            .then(() => {
+                openChromeToTopstep();
+                return new Promise(resolve => setTimeout(resolve, 9000)); // Wait for 9 seconds
+            })
+            .then(() => {
+                return simulateSell(quantity, price, ticker); // Retry simulateSell function
+            })
+            .catch((err) => {
+                console.error(err);
+            });
+    }
 };
+
+
+
 
 
 
