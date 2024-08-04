@@ -71,6 +71,14 @@ const handleAlert = (data) => {
         } else {
             console.log(`No short position for ${ticker}, ignoring short cover signal.`);
         }
+    }else if (action === 'stopped') {
+        if (positions[ticker]) {
+            delete positions[ticker];
+            console.log(`Stopped out of ${ticker}`);
+            console.log('Current positions:', positions); // Log the current positions after being stopped out
+        } else {
+            console.log(`No position for ${ticker}, ignoring stopped signal.`);
+        }
     }
 };
 
@@ -95,6 +103,8 @@ const processData = (data) => {
     } else if (data.action === 'SHORT_COVER') {
         action = 'short_cover';
         quantity = positions[ticker]?.quantity || 0; // Use the quantity of the existing short position
+    }else if (data.action === 'STOPPED') {
+        action = 'stopped';
     }
 
     return { action, quantity, close: closePrice, ticker };
