@@ -187,17 +187,33 @@ const simulateBuy = async (quantity, price, ticker) => {
             if (page !== (await browser.pages())[0]) {
                 await page.bringToFront(); // Bring the tab to front
             }
+            // Ensure the correct contract is selected
+            const contractInputSelector = 'input.MuiInputBase-input.MuiOutlinedInput-input';
+            await page.waitForSelector(contractInputSelector);
 
+            const contractValue = await page.$eval(contractInputSelector, el => el.value);
+
+            if ((ticker === 'ES1' && !contractValue.includes('ES')) || (ticker === 'NQ1' && !contractValue.includes('NQ'))) {
+                await page.click(contractInputSelector, { clickCount: 3 });
+                await page.type(contractInputSelector, ticker === 'ES1' ? 'ES' : 'NQ');
+                await page.keyboard.press('ArrowDown');
+                await page.keyboard.press('Enter');
+                console.log(`Selected the correct contract for ${ticker}`);
+            } else {
+                console.log(`Already ${ticker} contract`);
+            }
+
+
+            await page.waitForSelector('div.MuiInputBase-root input#\\:r10\\:');
+            await page.click('div.MuiInputBase-root input#\\:r10\\:', { clickCount: 3 });
+            await page.type('div.MuiInputBase-root input#\\:r10\\:', quantity.toString());
+            console.log(`Set the order quantity to ${quantity}.`);
             // Change the value of the price input field to the provided close price
             await page.waitForSelector('#\\:rv\\:');  // Escape the colon in the selector
             await page.click('#\\:rv\\:', { clickCount: 3 });
             await page.type('#\\:rv\\:', price.toString());
             console.log(`Set the price to ${price}.`);
 
-            await page.waitForSelector('div.MuiInputBase-root input#\\:r10\\:');
-            await page.click('div.MuiInputBase-root input#\\:r10\\:', { clickCount: 3 });
-            await page.type('div.MuiInputBase-root input#\\:r10\\:', quantity.toString());
-            console.log(`Set the order quantity to ${quantity}.`);
 
             // Click the place order button (example selector, adjust as per your page)
             await page.waitForSelector('button.MuiButtonBase-root.MuiButton-root.MuiButton-contained.MuiButton-containedSuccess.MuiButton-sizeLarge.MuiButton-containedSizeLarge');
@@ -298,16 +314,33 @@ const simulateSell = async (quantity, price, ticker) => {
                 await page.bringToFront(); // Bring the tab to front
             }
 
+            // Ensure the correct contract is selected
+        const contractInputSelector = 'input.MuiInputBase-input.MuiOutlinedInput-input';
+        await page.waitForSelector(contractInputSelector);
+
+        const contractValue = await page.$eval(contractInputSelector, el => el.value);
+
+        if ((ticker === 'ES1' && !contractValue.includes('ES')) || (ticker === 'NQ1' && !contractValue.includes('NQ'))) {
+            await page.click(contractInputSelector, { clickCount: 3 });
+            await page.type(contractInputSelector, ticker === 'ES1' ? 'ES' : 'NQ');
+            await page.keyboard.press('ArrowDown');
+            await page.keyboard.press('Enter');
+            console.log(`Selected the correct contract for ${ticker}`);
+        } else {
+            console.log(`Already ${ticker} contract`);
+        }
+
+
+            await page.waitForSelector('div.MuiInputBase-root input#\\:r10\\:');
+            await page.click('div.MuiInputBase-root input#\\:r10\\:', { clickCount: 3 });
+            await page.type('div.MuiInputBase-root input#\\:r10\\:', quantity.toString());
+            console.log(`Set the order quantity to ${quantity}.`);
             // Change the value of the price input field to the provided close price
             await page.waitForSelector('#\\:rv\\:');  // Escape the colon in the selector
             await page.click('#\\:rv\\:', { clickCount: 3 });
             await page.type('#\\:rv\\:', price.toString());
             console.log(`Set the price to ${price}.`);
 
-            await page.waitForSelector('div.MuiInputBase-root input#\\:r10\\:');
-            await page.click('div.MuiInputBase-root input#\\:r10\\:', { clickCount: 3 });
-            await page.type('div.MuiInputBase-root input#\\:r10\\:', quantity.toString());
-            console.log(`Set the order quantity to ${quantity}.`);
 
             // Click the place order button (example selector, adjust as per your page)
             await page.waitForSelector('button.MuiButtonBase-root.MuiButton-root.MuiButton-contained.MuiButton-containedError.MuiButton-sizeLarge.MuiButton-containedSizeLarge');
