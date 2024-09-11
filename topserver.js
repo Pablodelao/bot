@@ -208,9 +208,9 @@ const simulateBuy = async (quantity, price, ticker) => {
             // await page.click('div.MuiInputBase-root input#\\:r10\\:', { clickCount: 3 });
             // await page.type('div.MuiInputBase-root input#\\:r10\\:', quantity.toString());
             // console.log(`Set the order quantity to ${quantity}.`);
-            await page.waitForSelector('input#\\:r11\\:');
-            await page.click('input#\\:r11\\:', { clickCount: 3 });
-            await page.type('input#\\:r11\\:', quantity.toString());
+            await page.waitForSelector('input#\\:r10\\:');
+            await page.click('input#\\:r10\\:', { clickCount: 3 });
+            await page.type('input#\\:r10\\:', quantity.toString());
             console.log(`Set the order quantity to ${quantity}.`);
 
             // Change the value of the price input field to the provided close price
@@ -219,9 +219,9 @@ const simulateBuy = async (quantity, price, ticker) => {
             // await page.type('#\\:rv\\:', price.toString());
             // console.log(`Set the price to ${price}.`);
 
-            await page.waitForSelector('input#\\:r10\\:');  // Updated selector for the price input field
-            await page.click('input#\\:r10\\:', { clickCount: 3 });
-            await page.type('input#\\:r10\\:', price.toString());
+            await page.waitForSelector('input#\\:rv\\:');  // Updated selector for the price input field
+            await page.click('input#\\:rv\\:', { clickCount: 3 });
+            await page.type('input#\\:rv\\:', price.toString());
             console.log(`Set the price to ${price}.`);
 
 
