@@ -208,10 +208,19 @@ const simulateBuy = async (quantity, price, ticker) => {
             // await page.click('div.MuiInputBase-root input#\\:r10\\:', { clickCount: 3 });
             // await page.type('div.MuiInputBase-root input#\\:r10\\:', quantity.toString());
             // console.log(`Set the order quantity to ${quantity}.`);
-            await page.waitForSelector('input#\\:r10\\:');
-            await page.click('input#\\:r10\\:', { clickCount: 3 });
-            await page.type('input#\\:r10\\:', quantity.toString());
-            console.log(`Set the order quantity to ${quantity}.`);
+            // Use the aria-invalid attribute to select the input field, which seems stable
+const quantityInputSelector = 'input[aria-invalid="false"][type="number"][min="1"][step="1"]';
+
+// Wait for the input field to appear
+await page.waitForSelector(quantityInputSelector);
+
+// Click to select the input field and clear it, then input the new value
+const quantityInput = await page.$(quantityInputSelector);
+await quantityInput.click({ clickCount: 3 });
+await quantityInput.type(quantity.toString());
+
+console.log(`Set the order quantity to ${quantity}.`);
+
 
             // Change the value of the price input field to the provided close price
             // await page.waitForSelector('#\\:rv\\:');  // Escape the colon in the selector
@@ -219,10 +228,20 @@ const simulateBuy = async (quantity, price, ticker) => {
             // await page.type('#\\:rv\\:', price.toString());
             // console.log(`Set the price to ${price}.`);
 
-            await page.waitForSelector('input#\\:rv\\:');  // Updated selector for the price input field
-            await page.click('input#\\:rv\\:', { clickCount: 3 });
-            await page.type('input#\\:rv\\:', price.toString());
-            console.log(`Set the price to ${price}.`);
+// Selector for the Limit Price input field using attributes
+const limitPriceInputSelector = 'input[aria-invalid="false"][type="number"][min="0"][step="0.25"]';
+
+// Wait for the Limit Price input field to appear
+await page.waitForSelector(limitPriceInputSelector);
+
+// Click to select the input field and clear it, then input the new value
+const limitPriceInput = await page.$(limitPriceInputSelector);
+await limitPriceInput.click({ clickCount: 3 });
+await limitPriceInput.type(price.toString());
+
+console.log(`Set the limit price to ${price}.`);
+
+            
 
 
             // Click the place order button (example selector, adjust as per your page)
